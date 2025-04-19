@@ -1,1 +1,17 @@
+# Archivos de entorno
 .env
+.env.*
+!.env.example  # Opcional: Mantén un archivo de ejemplo
+
+# Entornos virtuales de Python
+venv/
+.env/
+env/
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+
+# Archivos de IDE
+.vscode/
+.idea/
