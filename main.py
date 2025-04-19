@@ -33,21 +33,6 @@ class ArticuloBase(BaseModel):
     descripcion: Optional[str] = None
     stock: Optional[int] = None
     
-async def get_connection():
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            conn = await asyncpg.connect(
-                os.getenv("DATABASE_URL"),
-                timeout=10  # 10 segundos de timeout
-            )
-            print("✅ Conexión exitosa a Supabase")
-            return conn
-        except Exception as e:
-            print(f"⚠️ Intento {attempt+1} fallido: {str(e)}")
-            if attempt == max_retries - 1:
-                raise
-            await asyncio.sleep(2) 
 
 @app.on_event("startup")
 async def startup():
