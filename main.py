@@ -6,14 +6,39 @@ from dotenv import load_dotenv
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 
+import asyncio
+from contextlib import asynccontextmanager
+
+
+
 # Cargar variables de entorno
 load_dotenv()
 
-app = FastAPI(
-    title="API de Artículos",
-    description="API para gestión de artículos con Supabase",
-    version="1.0.0"
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Configuración de conexión con reintentos
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            app.state.db = await asyncpg.connect(
+                os.getenv("DATABASE_URL"),
+                timeout=10,
+                ssl='require'
+            )
+            print(f"✅ Conexión exitosa (Intento {attempt+1})")
+            break
+        except Exception as e:
+            print(f"⚠️ Error en intento {attempt+1}: {str(e)}")
+            if attempt == max_retries - 1:
+                raise RuntimeError("No se pudo conectar a la DB después de 3 intentos")
+            await asyncio.sleep(2)
+    
+    yield  # Aquí se ejecuta tu aplicación
+    
+    if hasattr(app.state, 'db'):
+        await app.state.db.close()
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
