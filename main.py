@@ -33,7 +33,6 @@ class ArticuloBase(BaseModel):
     descripcion: Optional[str] = None
     stock: Optional[int] = None
     
-
 @app.on_event("startup")
 async def startup():
     global conn
@@ -87,3 +86,10 @@ async def eliminar_articulo(idarticulo: int):
             idarticulo)
     return {"mensaje": "Articulo eliminado"}
 
+@app.get("/debug-db")
+async def debug_db():
+    try:
+        await app.state.db.execute("SELECT 1")
+        return {"db_status": "connected"}
+    except Exception as e:
+        return {"db_status": "error", "details": str(e)}
