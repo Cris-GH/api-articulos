@@ -58,6 +58,16 @@ class ArticuloBase(BaseModel):
     descripcion: Optional[str] = None
     stock: Optional[int] = None
     
+
+async def get_db():
+    return await asyncpg.connect(
+        os.getenv("DATABASE_URL"),
+        ssl={
+            'sslmode': 'require',
+            'sslrootcert': '/etc/ssl/certs/ca-certificates.crt'
+        }
+    )
+
 @app.on_event("startup")
 async def startup():
     global conn
