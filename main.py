@@ -6,13 +6,22 @@ from dotenv import load_dotenv
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 
+from contextlib import asynccontextmanager
+
 load_dotenv()
 
-app = FastAPI(
-    title="API de Artículos",
-    description="API para gestión de artículos con Supabase",
-    version="1.0.0"
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.pool = await asyncpg.create_pool(
+        os.getenv("DATABASE_URL"),
+        min_size=1,
+        max_size=5,
+        ssl='require'
+    )
+    yield
+    await app.state.pool.close()
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,45 +51,57 @@ async def shutdown():
     await conn.close()
 
 # Endpoints CRUD
-@app.post("/articulos") 
-async def crear_articulo(articulo:ArticuloBase):
-    await conn.execute(
-        """INSERT INTO public.articulo 
-            (idcategoria, nombre, descripcion, stock) 
-            VALUES ($1, $2, $3, $4) 
-            RETURNING idarticulo, idcategoria, nombre, descripcion, stock""",
+@app.post("/articulos")
+async def crear_articulo(articulo: ArticuloBase):
+    async with app.state.pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO public.articulo 
+                (idcategoria, nombre, descripcion, stock) 
+                VALUES ($1, $2, $3, $4) 
+                RETURNING idarticulo""",
             articulo.idcategoria, articulo.nombre, 
             articulo.descripcion, articulo.stock
-    )
-    return {"mensaje": "Articulo agregado"}
+        )
+    return {"mensaje": "Artículo agregado"}
 
 @app.get("/articulos")
 async def listar_articulos():
-    rows = await conn.fetch("SELECT * FROM public.articulo ORDER BY idarticulo")
+    async with app.state.pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM public.articulo")
     return [dict(row) for row in rows]
 
 @app.get("/articulos/{idarticulo}")
 async def obtener_articulo(idarticulo: int):
-    row = await conn.fetchrow(
-        "SELECT * FROM public.articulo WHERE idarticulo = $1", 
-        idarticulo
-    )
+    async with app.state.pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM public.articulo WHERE idarticulo = $1", 
+            idarticulo
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Artículo no encontrado")
     return dict(row)
 
 @app.put("/articulos/{idarticulo}")
 async def actualizar_articulo(idarticulo: int, articulo: ArticuloBase):
-    result = await conn.execute(
-        """UPDATE public.articulo 
-            SET idcategoria=$1, nombre=$2, descripcion=$3, stock=$4 
-            WHERE idarticulo=$5 
-            RETURNING idarticulo, idcategoria, nombre, descripcion, stock""",
+    async with app.state.pool.acquire() as conn:
+        updated = await conn.execute(
+            """UPDATE public.articulo 
+                SET idcategoria=$1, nombre=$2, descripcion=$3, stock=$4 
+                WHERE idarticulo=$5""",
             articulo.idcategoria, articulo.nombre, 
             articulo.descripcion, articulo.stock, idarticulo
-    )
-    return {"mensaje": "Articulo actualizado"}
+        )
+        if "UPDATE 0" in updated:
+            raise HTTPException(status_code=404, detail="Artículo no encontrado")
+    return {"mensaje": "Artículo actualizado"}
 
 @app.delete("/articulos/{idarticulo}")
 async def eliminar_articulo(idarticulo: int):
-    await conn.execute("DELETE FROM public.articulo WHERE idarticulo=$1", 
-            idarticulo)
-    return {"mensaje": "Articulo eliminado"}
+    async with app.state.pool.acquire() as conn:
+        deleted = await conn.execute(
+            "DELETE FROM public.articulo WHERE idarticulo=$1", 
+            idarticulo
+        )
+        if "DELETE 0" in deleted:
+            raise HTTPException(status_code=404, detail="Artículo no encontrado")
+    return {"mensaje": "Artículo eliminado"}
