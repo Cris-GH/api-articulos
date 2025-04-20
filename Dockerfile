@@ -1,18 +1,18 @@
-# Usa una imagen oficial de Python con versión 3.9 (ligera)
 FROM python:3.9-slim
 
-# Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Copia los archivos necesarios al contenedor
-COPY requirements.txt .
-COPY main.py .
+# Instala dependencias del sistema para asyncpg
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instala las dependencias de Python
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expone el puerto donde FastAPI escucha (8000 por defecto)
+COPY . .
+
 EXPOSE 8000
 
-# Comando para ejecutar la aplicación con Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

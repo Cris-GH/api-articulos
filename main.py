@@ -44,7 +44,16 @@ class ArticuloBase(BaseModel):
 @app.on_event("startup")
 async def startup():
     global conn
-    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        app.state.pool = await asyncpg.create_pool(
+            os.getenv("DATABASE_URL"),
+            min_size=1,
+            max_size=10
+        )
+        print("¡Conexión exitosa a la base de datos!")
+    except Exception as e:
+        print(f"Error de conexión: {str(e)}")
+        raise   
 
 @app.on_event("shutdown")
 async def shutdown():
